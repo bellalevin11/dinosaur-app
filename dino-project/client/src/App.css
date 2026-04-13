@@ -510,6 +510,11 @@ button:active {
   color: #a9a79f;
 }
 
+.locked-card p {
+  color: #8ba18d;
+  font-style: italic;
+}
+
 .user-info {
   display: flex;
   align-items: center;

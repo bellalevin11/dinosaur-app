@@ -337,12 +337,15 @@ function App() {
                   className={`collection-card ${unlocked ? "clickable-card unlocked-card" : "locked-card"}`}
                   onClick={unlocked ? () => openDinoModal(dino) : undefined}
                 >
-                  {!unlocked && (
-                    <div className="card-icon">🔒</div>
-                  )}
+                  {!unlocked && <div className="card-icon">🔒</div>}
 
-                  <h3>{unlocked ? dino.name : "???"}</h3>
-                  <p>{unlocked ? (dino.diet || dino.description) : "Mystery dinosaur"}</p>
+                  <h3>{dino.name}</h3>
+
+                  <p>
+                    {unlocked
+                      ? (dino.diet || dino.description)
+                      : `${currentUser.points} / ${dino.points_required} points`}
+                  </p>
                 </div>
               );
             })}
