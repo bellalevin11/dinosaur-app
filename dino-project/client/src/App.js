@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import "./App.css";
+import DinoViewer from "./DinoViewer";
 
 function App() {
   // State variables to manage user and dinosaur data
@@ -10,6 +12,11 @@ function App() {
   const [unlockedDinos, setUnlockedDinos] = useState([]);
   const [question, setQuestion] = useState(null);
   const [choices, setChoices] = useState([]);
+  const [selectedDino, setSelectedDino] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
+  const [isGameOpen, setIsGameOpen] = useState(false);
+  const [isError, setIsError] = useState(false);
 
   // Load saved user from localStorage on initial render
   useEffect(() => {
@@ -55,7 +62,7 @@ function App() {
     }
   };
 
-  // Fetch unlocked dinosaurs for a user
+  // Fetch unlocked dinosaurs for the current user
   const fetchUnlocked = async (userId) => {
     try {
       const res = await fetch(`http://localhost:5001/unlocked/${userId}`);
@@ -70,6 +77,7 @@ function App() {
     }
   };
 
+  // Sign up a new user
   const signup = async () => {
     try {
       const res = await fetch("http://localhost:5001/signup", {
@@ -80,20 +88,26 @@ function App() {
         body: JSON.stringify({ username, password })
       });
 
+      const text = await res.text();
+
       if (!res.ok) {
-        throw new Error("Signup failed");
+        setIsError(true);
+        setMessage(text);
+        return;
       }
 
-      await res.json();
-      setMessage("Signup successful. You can now log in.");
+      setIsError(false);
+      setMessage("Signup successful! You can now log in.");
       setUsername("");
       setPassword("");
     } catch (err) {
       console.error(err);
-      setMessage("Error signing up");
+      setIsError(true);
+      setMessage("Something went wrong. Try again.");
     }
   };
 
+  // Login a user
   const login = async () => {
     try {
       const res = await fetch("http://localhost:5001/login", {
@@ -104,22 +118,27 @@ function App() {
         body: JSON.stringify({ username, password })
       });
 
+      const text = await res.text();
+
       if (!res.ok) {
-        throw new Error("Invalid login");
+        setIsError(true);
+        setMessage(text);
+        return;
       }
 
-      const data = await res.json();
+      const data = JSON.parse(text);
       setCurrentUser(data);
       localStorage.setItem("currentUser", JSON.stringify(data));
+      setIsError(false);
       setMessage("Login successful");
-      setUsername("");
-      setPassword("");
     } catch (err) {
       console.error(err);
-      setMessage("Login failed");
+      setIsError(true);
+      setMessage("Something went wrong. Try again.");
     }
   };
 
+  // Add points to the current user
   const addPointsToUser = async (pointsToAdd) => {
     try {
       const res = await fetch("http://localhost:5001/add-points", {
@@ -167,6 +186,7 @@ function App() {
     }
   };
 
+  // Generate a question
   const generateQuestion = () => {
     if (dinosaurs.length < 3) return;
 
@@ -179,11 +199,13 @@ function App() {
     setChoices(selectedChoices);
   };
 
+  // Handle a guess
   const handleGuess = async (selectedName) => {
     if (!question) return;
 
     if (selectedName === question.name) {
       await addPointsToUser(10);
+      setMessage("Correct! You earned 10 points.");
     } else {
       setMessage(`Wrong. The correct answer was ${question.name}.`);
     }
@@ -191,6 +213,35 @@ function App() {
     generateQuestion();
   };
 
+  const openDinoModal = (dino) => {
+    setSelectedDino(dino);
+    setIsModalOpen(true);
+  };
+
+  const closeDinoModal = () => {
+    setSelectedDino(null);
+    setIsModalOpen(false);
+  };
+
+  const openInstructions = () => {
+    setIsInstructionsOpen(true);
+  };
+
+  const closeInstructions = () => {
+    setIsInstructionsOpen(false);
+  };
+
+  const startGame = () => {
+    setIsInstructionsOpen(false);
+    generateQuestion();
+    setIsGameOpen(true);
+  };
+
+  const closeGame = () => {
+    setIsGameOpen(false);
+  };
+
+  // Logout
   const logout = () => {
     setCurrentUser(null);
     localStorage.removeItem("currentUser");
@@ -198,111 +249,233 @@ function App() {
   };
 
   if (currentUser) {
-    return (
-      <div style={{ padding: "20px" }}>
-        <h1>Welcome, {currentUser.username}!</h1>
-        <p>Points: {currentUser.points}</p>
-
-        <button onClick={logout}>Logout</button>
-
-        <p>{message}</p>
-
-        <h2>Guess the Dinosaur</h2>
-        {question && (
-          <div
-            style={{
-              border: "1px solid black",
-              padding: "15px",
-              marginBottom: "20px"
-            }}
-          >
-            <p><strong>Clue:</strong> {question.clue}</p>
-            {choices.map((choice) => (
-              <button
-                key={choice.id}
-                onClick={() => handleGuess(choice.name)}
-                style={{ display: "block", margin: "10px 0" }}
-              >
-                {choice.name}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <h2>Your Unlocked Collection</h2>
-        {unlockedDinos.length === 0 ? (
-          <p>No dinosaurs unlocked yet.</p>
-        ) : (
-          unlockedDinos.map((dino) => (
-            <div
-              key={dino.id}
-              style={{
-                border: "1px solid green",
-                margin: "10px 0",
-                padding: "10px"
-              }}
-            >
-              <h3>{dino.name}</h3>
-              <p>{dino.description}</p>
-              <p>Unlocked</p>
-            </div>
-          ))
-        )}
-
-        <h2>All Dinosaurs</h2>
-        {dinosaurs.map((dino) => {
-          const isUnlocked = unlockedDinos.some(
-            (unlocked) => unlocked.id === dino.id
-          );
-
-          return (
-            <div
-              key={dino.id}
-              style={{
-                border: "1px solid black",
-                margin: "10px 0",
-                padding: "10px",
-                opacity: isUnlocked ? 1 : 0.5
-              }}
-            >
-              <h3>{dino.name}</h3>
-              <p>{dino.description}</p>
-              <p>Points needed: {dino.points_required}</p>
-              <p>Status: {isUnlocked ? "Unlocked" : "Locked"}</p>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
+  const totalDinosaurs = dinosaurs.length;
+  const unlockedCount = unlockedDinos.length;
+  const remainingCount = totalDinosaurs - unlockedCount;
+  const completionPercentage =
+    totalDinosaurs > 0
+      ? Math.round((unlockedCount / totalDinosaurs) * 100)
+      : 0;
 
   return (
-    <div style={{ padding: "20px" }}>
-      <h1>DinoDex Login</h1>
+    <div className="app">
+      <div className="dashboard-navbar">
+        <div className="navbar-left">
+          <h1 className="dashboard-title">DinoQuest</h1>
 
-      <input
-        placeholder="username"
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-      />
+          <div className="user-info">
+            👤 {currentUser.username}
+          </div>
+        </div>
 
-      <br /><br />
+        <div className="navbar-right">
+          <div className="points-badge">🦖 {currentUser.points}</div>
+          <button onClick={logout}>Logout</button>
+        </div>
+      </div>
 
-      <input
-        placeholder="password"
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-      />
+      <div className="stats-row">
+        <div className="stat-card">
+          <h3>Unlocked</h3>
+          <p>{unlockedCount}</p>
+        </div>
 
-      <br /><br />
+        <div className="stat-card">
+          <h3>Remaining</h3>
+          <p>{remainingCount}</p>
+        </div>
 
-      <button onClick={signup}>Sign Up</button>
-      <button onClick={login} style={{ marginLeft: "10px" }}>
-        Login
-      </button>
+        <div className="stat-card">
+          <h3>Games Played</h3>
+          <p>--</p>
+        </div>
 
-      <p>{message}</p>
+        <div className="stat-card">
+          <h3>Completion</h3>
+          <p>{completionPercentage}%</p>
+        </div>
+      </div>
+
+      <div className="dashboard-main">
+        <div className="minigames-panel">
+          <h2>Minigames</h2>
+
+          <div className="progress-section">
+            <p>
+              Progress: {unlockedCount} / {totalDinosaurs} dinosaurs unlocked
+            </p>
+            <div className="progress-bar">
+              <div
+                className="progress-fill"
+                style={{ width: `${completionPercentage}%` }}
+              ></div>
+            </div>
+          </div>
+
+          <div className="minigame-button-list">
+            <button className="minigame-button" onClick={openInstructions}>
+              <span>Guess the Dinosaur</span>
+              <span>+10</span>
+            </button>
+          </div>
+
+          <p className="message">{message}</p>
+        </div>
+
+        <div className="collection-panel">
+          <h2>Dinosaur Collection</h2>
+
+          <div className="collection-grid">
+            {dinosaurs.map((dino) => {
+              const unlocked = unlockedDinos.some(
+                (unlockedDino) => unlockedDino.id === dino.id
+              );
+
+              return (
+                <div
+                  key={dino.id}
+                  className={`collection-card ${unlocked ? "clickable-card unlocked-card" : "locked-card"}`}
+                  onClick={unlocked ? () => openDinoModal(dino) : undefined}
+                >
+                  {!unlocked && (
+                    <div className="card-icon">🔒</div>
+                  )}
+
+                  <h3>{unlocked ? dino.name : "???"}</h3>
+                  <p>{unlocked ? (dino.diet || dino.description) : "Mystery dinosaur"}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {isInstructionsOpen && (
+        <div className="modal-overlay" onClick={closeInstructions}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={closeInstructions}>
+              X
+            </button>
+
+            <h2>Guess the Dinosaur</h2>
+            <p>
+              You will be shown a clue about a dinosaur. Choose the correct
+              dinosaur from the answer choices.
+            </p>
+            <p>
+              Each correct answer earns <strong>10 points</strong>.
+            </p>
+            <p>Use your points to unlock more dinosaurs in your collection.</p>
+
+            <button onClick={startGame}>Start Game</button>
+          </div>
+        </div>
+      )}
+
+      {isGameOpen && (
+        <div className="modal-overlay" onClick={closeGame}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={closeGame}>
+              X
+            </button>
+
+            <h2>Guess the Dinosaur</h2>
+            <p className="points-badge">🦖 {currentUser.points} Points</p>
+
+            {question && (
+              <div className="game-card">
+                <p>
+                  <strong>Clue:</strong> {question.clue}
+                </p>
+
+                {choices.map((choice) => (
+                  <button
+                    key={choice.id}
+                    onClick={() => handleGuess(choice.name)}
+                    className="choice-button"
+                  >
+                    {choice.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <p className="message">{message}</p>
+          </div>
+        </div>
+      )}
+
+      {isModalOpen && selectedDino && (
+        <div className="modal-overlay" onClick={closeDinoModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={closeDinoModal}>
+              X
+            </button>
+
+            <h2>{selectedDino.name}</h2>
+
+            {selectedDino.model_path && (
+              <DinoViewer
+                modelPath={selectedDino.model_path}
+                scale={selectedDino.model_scale}
+                yOffset={selectedDino.model_y_offset}
+              />
+            )}
+
+            <p>{selectedDino.description}</p>
+            <p>Points needed: {selectedDino.points_required}</p>
+            <p className="status unlocked">Unlocked</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+  return (
+    <div className="auth-page">
+      <div className="auth-container">
+        <div className="auth-header">
+          <h1 className="auth-title">DinoQuest</h1>
+          <p className="auth-subtitle">
+            Unlock dinosaurs by playing prehistoric minigames
+          </p>
+        </div>
+
+        <div className="auth-form">
+          <label className="auth-label">Username</label>
+          <input
+            className="auth-input"
+            placeholder="Enter username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+
+          <label className="auth-label">Password</label>
+          <input
+            className="auth-input"
+            placeholder="Enter password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+
+          <div className="auth-button-group">
+            <button className="auth-button secondary" onClick={signup}>
+              Sign Up
+            </button>
+            <button className="auth-button primary" onClick={login}>
+              Login
+            </button>
+          </div>
+
+          {message && (
+            <p className={`message ${isError ? "error" : "success"}`}>
+              {message}
+            </p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

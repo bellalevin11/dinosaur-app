@@ -1,5 +1,4 @@
 const bcrypt = require("bcrypt");
-
 const express = require("express");
 const cors = require("cors");
 const pool = require("./db");
@@ -19,42 +18,94 @@ app.get("/test-db", async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).send("Database error");
+    res.status(500).send("An error occurred");
   }
 });
 
-app.listen(5001, () => {
-  console.log("Server running on port 5001");
-});
-
-// signup section for users
+// SIGNUP
 app.post("/signup", async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    const hashedPassword = await bcrypt.hash(password, 10); // 10 = salt rounds
+    if (!username || !password) {
+      return res.status(400).send("Username and password are required");
+    }
+
+    const trimmedUsername = username.trim();
+
+    if (trimmedUsername.length === 0) {
+      return res.status(400).send("Username cannot be blank");
+    }
+
+    if (trimmedUsername.length > 50) {
+      return res.status(400).send("Username must be 50 characters or fewer");
+    }
+
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(trimmedUsername)) {
+      return res
+        .status(400)
+        .send("Username must be 3-20 characters and contain only letters, numbers, or underscores");
+    }
+
+    if (password.length < 8) {
+      return res.status(400).send("Password must be at least 8 characters long");
+    }
+
+    if (password.length > 100) {
+      return res.status(400).send("Password must be 100 characters or fewer");
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
-      "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING *",
-      [username, hashedPassword]  // store the hash, not the plain text
+      "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING id, username, points",
+      [trimmedUsername, hashedPassword]
     );
 
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).send("Error signing up");
+
+    if (err.code === "23505") {
+      return res.status(400).send("Username already exists");
+    }
+
+    res.status(500).send("An error occurred");
   }
 });
 
-// login section for users
+// LOGIN
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
 
   try {
-    // fetch user by username only (can't query by hashed password)
+    if (!username || !password) {
+      return res.status(400).send("Username and password are required");
+    }
+
+    const trimmedUsername = username.trim();
+
+    if (trimmedUsername.length === 0) {
+      return res.status(400).send("Username cannot be blank");
+    }
+
+    if (trimmedUsername.length > 50) {
+      return res.status(400).send("Username must be 50 characters or fewer");
+    }
+
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(trimmedUsername)) {
+      return res
+        .status(400)
+        .send("Username must be 3-20 characters and contain only letters, numbers, or underscores");
+    }
+
+    if (password.length > 100) {
+      return res.status(400).send("Password must be 100 characters or fewer");
+    }
+
     const result = await pool.query(
       "SELECT * FROM users WHERE username = $1",
-      [username]
+      [trimmedUsername]
     );
 
     if (result.rows.length === 0) {
@@ -62,63 +113,81 @@ app.post("/login", async (req, res) => {
     }
 
     const user = result.rows[0];
-
-    // compare plain text input against the stored hash
     const validPassword = await bcrypt.compare(password, user.password);
 
     if (!validPassword) {
       return res.status(401).send("Invalid credentials");
     }
 
-    res.json(user);
+    res.json({
+      id: user.id,
+      username: user.username,
+      points: user.points
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).send("Login error");
+    res.status(500).send("An error occurred");
   }
 });
 
-// adds points to the user's account
+// ADD POINTS
 app.post("/add-points", async (req, res) => {
-  const { userId, pointsToAdd } = req.body;
+  const { userId } = req.body;
+
+  if (!userId) {
+    return res.status(400).send("Missing user ID");
+  }
 
   try {
     const result = await pool.query(
-      "UPDATE users SET points = points + $1 WHERE id = $2 RETURNING *",
-      [pointsToAdd, userId]
+      "UPDATE users SET points = points + 10 WHERE id = $1 RETURNING id, username, points",
+      [userId]
     );
+
+    if (result.rows.length === 0) {
+      return res.status(404).send("User not found");
+    }
 
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).send("Error adding points");
+    res.status(500).send("An error occurred");
   }
 });
 
-// fetches all dinosaurs from the database and sends them to the client
+// GET ALL DINOSAURS
 app.get("/dinosaurs", async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM dinosaurs ORDER BY points_required ASC");
+    const result = await pool.query(
+      "SELECT * FROM dinosaurs ORDER BY points_required ASC"
+    );
     res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).send("Error fetching dinosaurs");
+    res.status(500).send("An error occurred");
   }
 });
 
-// checks which dinosaurs the user has unlocked based on their points and updates the unlocked_dinosaurs table
+// CHECK UNLOCKS
 app.post("/check-unlocks", async (req, res) => {
   const { userId } = req.body;
 
+  if (!userId) {
+    return res.status(400).send("Missing user ID");
+  }
+
   try {
-    // get user points
     const userResult = await pool.query(
       "SELECT points FROM users WHERE id = $1",
       [userId]
     );
 
+    if (userResult.rows.length === 0) {
+      return res.status(404).send("User not found");
+    }
+
     const points = userResult.rows[0].points;
 
-    // get dinos user qualifies for
     const dinosResult = await pool.query(
       "SELECT * FROM dinosaurs WHERE points_required <= $1",
       [points]
@@ -126,21 +195,18 @@ app.post("/check-unlocks", async (req, res) => {
 
     const qualifiedDinos = dinosResult.rows;
 
-    // get already unlocked dinos
     const unlockedResult = await pool.query(
       "SELECT dinosaur_id FROM unlocked_dinosaurs WHERE user_id = $1",
       [userId]
     );
 
-    const unlockedIds = unlockedResult.rows.map(d => d.dinosaur_id);
+    const unlockedIds = unlockedResult.rows.map((d) => d.dinosaur_id);
 
-    // find new unlocks
     const newUnlocks = qualifiedDinos.filter(
-      d => !unlockedIds.includes(d.id)
+      (d) => !unlockedIds.includes(d.id)
     );
 
-    // insert new unlocks
-    for (let dino of newUnlocks) {
+    for (const dino of newUnlocks) {
       await pool.query(
         "INSERT INTO unlocked_dinosaurs (user_id, dinosaur_id) VALUES ($1, $2)",
         [userId, dino.id]
@@ -148,30 +214,37 @@ app.post("/check-unlocks", async (req, res) => {
     }
 
     res.json({ unlocked: newUnlocks });
-
   } catch (err) {
     console.error(err);
-    res.status(500).send("Unlock error");
+    res.status(500).send("An error occurred");
   }
 });
 
-// endpoint to get all unlocked dinosaurs for a user
+// GET UNLOCKED DINOSAURS FOR A USER
 app.get("/unlocked/:userId", async (req, res) => {
   const userId = req.params.userId;
 
+  if (!userId) {
+    return res.status(400).send("Missing user ID");
+  }
+
   try {
     const result = await pool.query(
-      `SELECT d.* 
+      `SELECT d.*
        FROM unlocked_dinosaurs u
        JOIN dinosaurs d ON u.dinosaur_id = d.id
-       WHERE u.user_id = $1`,
+       WHERE u.user_id = $1
+       ORDER BY d.points_required ASC`,
       [userId]
     );
 
     res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).send("Error fetching unlocked dinos");
+    res.status(500).send("An error occurred");
   }
 });
 
+app.listen(5001, () => {
+  console.log("Server running on port 5001");
+});
