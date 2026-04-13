@@ -8,6 +8,8 @@ function App() {
   const [message, setMessage] = useState("");
   const [dinosaurs, setDinosaurs] = useState([]);
   const [unlockedDinos, setUnlockedDinos] = useState([]);
+  const [question, setQuestion] = useState(null);
+  const [choices, setChoices] = useState([]);
 
   // Load saved user from localStorage on initial render
   useEffect(() => {
@@ -31,6 +33,13 @@ function App() {
     }
   }, [currentUser]);
 
+  // Generate a question if there are enough dinosaurs
+  useEffect(() => {
+    if (dinosaurs.length >= 3) {
+      generateQuestion();
+    }
+  }, [dinosaurs]);
+
   // Fetch all dinosaurs from the server
   const fetchDinosaurs = async () => {
     try {
@@ -46,7 +55,7 @@ function App() {
     }
   };
 
-  // Fetch unlocked dinosaurs for the current user
+  // Fetch unlocked dinosaurs for a user
   const fetchUnlocked = async (userId) => {
     try {
       const res = await fetch(`http://localhost:5001/unlocked/${userId}`);
@@ -111,7 +120,7 @@ function App() {
     }
   };
 
-  const addPoints = async () => {
+  const addPointsToUser = async (pointsToAdd) => {
     try {
       const res = await fetch("http://localhost:5001/add-points", {
         method: "POST",
@@ -120,7 +129,7 @@ function App() {
         },
         body: JSON.stringify({
           userId: currentUser.id,
-          pointsToAdd: 10
+          pointsToAdd
         })
       });
 
@@ -145,18 +154,41 @@ function App() {
       }
 
       const unlockData = await unlockRes.json();
-
       await fetchUnlocked(updatedUser.id);
 
       if (unlockData.unlocked && unlockData.unlocked.length > 0) {
-        setMessage("New dinosaur unlocked!");
+        setMessage(`Correct! You earned ${pointsToAdd} points and unlocked a new dinosaur!`);
       } else {
-        setMessage("Added 10 points");
+        setMessage(`Correct! You earned ${pointsToAdd} points.`);
       }
     } catch (err) {
       console.error(err);
       setMessage("Error adding points");
     }
+  };
+
+  const generateQuestion = () => {
+    if (dinosaurs.length < 3) return;
+
+    const shuffled = [...dinosaurs].sort(() => 0.5 - Math.random());
+    const selectedChoices = shuffled.slice(0, 3);
+    const correctAnswer =
+      selectedChoices[Math.floor(Math.random() * selectedChoices.length)];
+
+    setQuestion(correctAnswer);
+    setChoices(selectedChoices);
+  };
+
+  const handleGuess = async (selectedName) => {
+    if (!question) return;
+
+    if (selectedName === question.name) {
+      await addPointsToUser(10);
+    } else {
+      setMessage(`Wrong. The correct answer was ${question.name}.`);
+    }
+
+    generateQuestion();
   };
 
   const logout = () => {
@@ -171,12 +203,31 @@ function App() {
         <h1>Welcome, {currentUser.username}!</h1>
         <p>Points: {currentUser.points}</p>
 
-        <button onClick={addPoints}>Earn 10 Points</button>
-        <button onClick={logout} style={{ marginLeft: "10px" }}>
-          Logout
-        </button>
+        <button onClick={logout}>Logout</button>
 
         <p>{message}</p>
+
+        <h2>Guess the Dinosaur</h2>
+        {question && (
+          <div
+            style={{
+              border: "1px solid black",
+              padding: "15px",
+              marginBottom: "20px"
+            }}
+          >
+            <p><strong>Clue:</strong> {question.clue}</p>
+            {choices.map((choice) => (
+              <button
+                key={choice.id}
+                onClick={() => handleGuess(choice.name)}
+                style={{ display: "block", margin: "10px 0" }}
+              >
+                {choice.name}
+              </button>
+            ))}
+          </div>
+        )}
 
         <h2>Your Unlocked Collection</h2>
         {unlockedDinos.length === 0 ? (
