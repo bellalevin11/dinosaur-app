@@ -17,7 +17,7 @@ function Model({ path, scale, yOffset }) {
 // Main component to display the 3D dinosaur viewer
 export default function DinoViewer({ modelPath, scale, yOffset }) {
   return (
-    <div style={{ width: "100%", height: "400px" }}> {/* Container for the 3D viewer */}
+    <div className="dino-viewer"> {/* Container for the 3D viewer */}
       <Canvas camera={{ position: [0, 2, 10], fov: 50 }}> {/* Set up the 3D canvas */}
         <ambientLight intensity={1} /> {/* Add ambient lighting */}
         <directionalLight position={[5, 5, 5]} /> {/* Add directional lighting */}

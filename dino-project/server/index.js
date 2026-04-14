@@ -37,18 +37,16 @@ app.post("/signup", async (req, res) => {
       return res.status(400).send("Username cannot be blank");
     }
 
-    if (trimmedUsername.length > 50) {
-      return res.status(400).send("Username must be 50 characters or fewer");
+    if (trimmedUsername.length < 3 || trimmedUsername.length > 20) {
+      return res.status(400).send("Username must be 3-20 characters");
     }
 
-    if (!/^[a-zA-Z0-9_]{3,20}$/.test(trimmedUsername)) {
-      return res
-        .status(400)
-        .send("Username must be 3-20 characters and contain only letters, numbers, or underscores");
+    if (!/^[a-zA-Z0-9_]+$/.test(trimmedUsername)) {
+      return res.status(400).send("Username can only contain letters, numbers, and underscores");
     }
 
     if (password.length < 8) {
-      return res.status(400).send("Password must be at least 8 characters long");
+      return res.status(400).send("Password must be at least 8 characters");
     }
 
     if (password.length > 100) {
@@ -89,14 +87,12 @@ app.post("/login", async (req, res) => {
       return res.status(400).send("Username cannot be blank");
     }
 
-    if (trimmedUsername.length > 50) {
-      return res.status(400).send("Username must be 50 characters or fewer");
+    if (trimmedUsername.length < 3 || trimmedUsername.length > 20) {
+      return res.status(400).send("Username must be 3-20 characters");
     }
 
-    if (!/^[a-zA-Z0-9_]{3,20}$/.test(trimmedUsername)) {
-      return res
-        .status(400)
-        .send("Username must be 3-20 characters and contain only letters, numbers, or underscores");
+    if (!/^[a-zA-Z0-9_]+$/.test(trimmedUsername)) {
+      return res.status(400).send("Username can only contain letters, numbers, and underscores");
     }
 
     if (password.length > 100) {
@@ -109,14 +105,14 @@ app.post("/login", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(401).send("Invalid credentials");
+      return res.status(401).send("Incorrect username or password");
     }
 
     const user = result.rows[0];
     const validPassword = await bcrypt.compare(password, user.password);
 
     if (!validPassword) {
-      return res.status(401).send("Invalid credentials");
+      return res.status(401).send("Incorrect username or password");
     }
 
     res.json({

@@ -1,11 +1,15 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import "./App.css";
 import DinoViewer from "./DinoViewer";
+
+const USERNAME_ALLOWED_PATTERN = /^[A-Za-z0-9_]+$/;
+const PASSWORD_MIN_LENGTH = 8;
 
 function App() {
   // State variables to manage user and dinosaur data
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [authMode, setAuthMode] = useState("login");
   const [currentUser, setCurrentUser] = useState(null);
   const [message, setMessage] = useState("");
   const [dinosaurs, setDinosaurs] = useState([]);
@@ -17,12 +21,15 @@ function App() {
   const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
   const [isGameOpen, setIsGameOpen] = useState(false);
   const [isError, setIsError] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Load saved user from localStorage on initial render
   useEffect(() => {
     const savedUser = localStorage.getItem("currentUser");
     if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
+      const parsedUser = JSON.parse(savedUser);
+      setCurrentUser(parsedUser);
+      setShowOnboarding(!hasSeenWelcome(parsedUser.id));
     }
   }, []);
 
@@ -40,12 +47,79 @@ function App() {
     }
   }, [currentUser]);
 
-  // Generate a question if there are enough dinosaurs
-  useEffect(() => {
-    if (dinosaurs.length >= 3) {
-      generateQuestion();
+  const hasSeenWelcome = (userId) => {
+    return localStorage.getItem(`dinoquest-welcome-seen-${userId}`) === "true";
+  };
+
+  const markWelcomeSeen = (userId) => {
+    localStorage.setItem(`dinoquest-welcome-seen-${userId}`, "true");
+  };
+
+  const switchAuthMode = (mode) => {
+    setAuthMode(mode);
+    setMessage("");
+    setIsError(false);
+    setPassword("");
+  };
+
+  const getMissingFieldsMessage = () => {
+    const missingUsername = username.trim().length === 0;
+    const missingPassword = password.length === 0;
+
+    if (missingUsername && missingPassword) {
+      return "Username and password are required";
     }
-  }, [dinosaurs]);
+
+    if (missingUsername) {
+      return "Username is required";
+    }
+
+    if (missingPassword) {
+      return "Password is required";
+    }
+
+    return "";
+  };
+
+  const getUsernameValidationMessage = () => {
+    const trimmedUsername = username.trim();
+
+    if (trimmedUsername.length < 3 || trimmedUsername.length > 20) {
+      return "Username must be 3-20 characters";
+    }
+
+    if (!USERNAME_ALLOWED_PATTERN.test(trimmedUsername)) {
+      return "Username can only contain letters, numbers, and underscores";
+    }
+
+    return "";
+  };
+
+  const getPasswordValidationMessage = () => {
+    if (password.length < PASSWORD_MIN_LENGTH) {
+      return "Password must be at least 8 characters";
+    }
+
+    return "";
+  };
+
+  const validateAuthFields = () => {
+    const missingMessage = getMissingFieldsMessage();
+    if (missingMessage) return missingMessage;
+
+    const usernameMessage = getUsernameValidationMessage();
+    if (usernameMessage) return usernameMessage;
+
+    const passwordMessage = getPasswordValidationMessage();
+    if (passwordMessage) return passwordMessage;
+
+    return "";
+  };
+
+  const showValidationError = (validationMessage) => {
+    setIsError(true);
+    setMessage(validationMessage);
+  };
 
   // Fetch all dinosaurs from the server
   const fetchDinosaurs = async () => {
@@ -79,6 +153,13 @@ function App() {
 
   // Sign up a new user
   const signup = async () => {
+    const validationMessage = validateAuthFields();
+
+    if (validationMessage) {
+      showValidationError(validationMessage);
+      return;
+    }
+
     try {
       const res = await fetch("http://localhost:5001/signup", {
         method: "POST",
@@ -97,7 +178,8 @@ function App() {
       }
 
       setIsError(false);
-      setMessage("Signup successful! You can now log in.");
+      setMessage("Account created! Log in to start exploring.");
+      setAuthMode("login");
       setUsername("");
       setPassword("");
     } catch (err) {
@@ -109,6 +191,13 @@ function App() {
 
   // Login a user
   const login = async () => {
+    const validationMessage = validateAuthFields();
+
+    if (validationMessage) {
+      showValidationError(validationMessage);
+      return;
+    }
+
     try {
       const res = await fetch("http://localhost:5001/login", {
         method: "POST",
@@ -122,13 +211,14 @@ function App() {
 
       if (!res.ok) {
         setIsError(true);
-        setMessage(text);
+        setMessage(res.status === 401 ? "Incorrect username or password" : text);
         return;
       }
 
       const data = JSON.parse(text);
       setCurrentUser(data);
       localStorage.setItem("currentUser", JSON.stringify(data));
+      setShowOnboarding(!hasSeenWelcome(data.id));
       setIsError(false);
       setMessage("Login successful");
     } catch (err) {
@@ -187,7 +277,7 @@ function App() {
   };
 
   // Generate a question
-  const generateQuestion = () => {
+  const generateQuestion = useCallback(() => {
     if (dinosaurs.length < 3) return;
 
     const shuffled = [...dinosaurs].sort(() => 0.5 - Math.random());
@@ -197,7 +287,14 @@ function App() {
 
     setQuestion(correctAnswer);
     setChoices(selectedChoices);
-  };
+  }, [dinosaurs]);
+
+  // Generate a question if there are enough dinosaurs
+  useEffect(() => {
+    if (dinosaurs.length >= 3) {
+      generateQuestion();
+    }
+  }, [dinosaurs, generateQuestion]);
 
   // Handle a guess
   const handleGuess = async (selectedName) => {
@@ -241,9 +338,20 @@ function App() {
     setIsGameOpen(false);
   };
 
+  const startExploring = () => {
+    if (currentUser) {
+      markWelcomeSeen(currentUser.id);
+    }
+
+    setShowOnboarding(false);
+    setMessage("");
+  };
+
   // Logout
   const logout = () => {
     setCurrentUser(null);
+    setShowOnboarding(false);
+    setAuthMode("login");
     localStorage.removeItem("currentUser");
     setMessage("Logged out");
   };
@@ -256,6 +364,40 @@ function App() {
     totalDinosaurs > 0
       ? Math.round((unlockedCount / totalDinosaurs) * 100)
       : 0;
+
+  if (showOnboarding) {
+    return (
+      <div className="onboarding-page">
+        <section className="onboarding-panel">
+          <p className="eyebrow">First expedition</p>
+          <h1>Welcome to DinoQuest</h1>
+          <p className="onboarding-intro">
+            Your collection starts here. Play quick challenges, earn points,
+            and bring more dinosaurs into your prehistoric gallery.
+          </p>
+
+          <div className="onboarding-steps">
+            <div className="onboarding-step">
+              <span className="step-number">1</span>
+              <p>Play minigames to earn points</p>
+            </div>
+            <div className="onboarding-step">
+              <span className="step-number">2</span>
+              <p>Use points to unlock dinosaurs</p>
+            </div>
+            <div className="onboarding-step">
+              <span className="step-number">3</span>
+              <p>Click unlocked dinosaurs to explore them in 3D</p>
+            </div>
+          </div>
+
+          <button className="action-button onboarding-button" onClick={startExploring}>
+            Start Exploring
+          </button>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
@@ -270,7 +412,7 @@ function App() {
 
         <div className="navbar-right">
           <div className="points-badge">🦖 {currentUser.points}</div>
-          <button onClick={logout}>Logout</button>
+          <button className="logout-button" onClick={logout}>Logout</button>
         </div>
       </div>
 
@@ -370,7 +512,7 @@ function App() {
             </p>
             <p>Use your points to unlock more dinosaurs in your collection.</p>
 
-            <button onClick={startGame}>Start Game</button>
+            <button className="action-button" onClick={startGame}>Start Game</button>
           </div>
         </div>
       )}
@@ -410,24 +552,40 @@ function App() {
 
       {isModalOpen && selectedDino && (
         <div className="modal-overlay" onClick={closeDinoModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content dino-modal" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={closeDinoModal}>
               X
             </button>
 
-            <h2>{selectedDino.name}</h2>
+            <div className="dino-modal-header">
+              <div>
+                <p className="eyebrow">3D discovery</p>
+                <h2>{selectedDino.name}</h2>
+              </div>
+              <p className="status unlocked">Unlocked</p>
+            </div>
 
-            {selectedDino.model_path && (
-              <DinoViewer
-                modelPath={selectedDino.model_path}
-                scale={selectedDino.model_scale}
-                yOffset={selectedDino.model_y_offset}
-              />
-            )}
+            <div className="dino-modal-body">
+              <div className="viewer-panel">
+                {selectedDino.model_path && (
+                  <DinoViewer
+                    modelPath={selectedDino.model_path}
+                    scale={selectedDino.model_scale}
+                    yOffset={selectedDino.model_y_offset}
+                  />
+                )}
+                <p className="viewer-help">Drag around to rotate the dinosaur. Scroll to zoom in and out.</p>
+              </div>
 
-            <p>{selectedDino.description}</p>
-            <p>Points needed: {selectedDino.points_required}</p>
-            <p className="status unlocked">Unlocked</p>
+              <div className="dino-info-panel">
+                <h3>Field Notes</h3>
+                <p>{selectedDino.description}</p>
+                <div className="dino-meta">
+                  <span>Points needed</span>
+                  <strong>{selectedDino.points_required}</strong>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -435,14 +593,24 @@ function App() {
   );
 }
 
+  const isLoginMode = authMode === "login";
+  const authTitle = isLoginMode
+    ? "Welcome back to DinoQuest"
+    : "Create your DinoQuest account";
+  const authSubtitle = isLoginMode
+    ? "Log in with your existing account to continue your dinosaur collection."
+    : "New explorers can create an account before starting the first expedition.";
+  const togglePrompt = isLoginMode
+    ? "New to DinoQuest? Click Sign Up to get started."
+    : "Already have a DinoQuest account?";
+
   return (
     <div className="auth-page">
       <div className="auth-container">
         <div className="auth-header">
-          <h1 className="auth-title">DinoQuest</h1>
-          <p className="auth-subtitle">
-            Unlock dinosaurs by playing prehistoric minigames
-          </p>
+          <p className="eyebrow">{isLoginMode ? "Existing users" : "New users"}</p>
+          <h1 className="auth-title">{authTitle}</h1>
+          <p className="auth-subtitle">{authSubtitle}</p>
         </div>
 
         <div className="auth-form">
@@ -463,12 +631,35 @@ function App() {
             onChange={(e) => setPassword(e.target.value)}
           />
 
+          {!isLoginMode && (
+            <div className="requirements-panel">
+              <p>Account requirements</p>
+              <ul>
+                <li>Username must be 3-20 characters</li>
+                <li>Username can only contain letters, numbers, and underscores</li>
+                <li>Password must be at least 8 characters</li>
+              </ul>
+            </div>
+          )}
+
           <div className="auth-button-group">
-            <button className="auth-button secondary" onClick={signup}>
-              Sign Up
+            <button
+              className="auth-button primary"
+              onClick={isLoginMode ? login : signup}
+              type="button"
+            >
+              {isLoginMode ? "Login" : "Create Account"}
             </button>
-            <button className="auth-button primary" onClick={login}>
-              Login
+          </div>
+
+          <div className="auth-switch-row">
+            <span>{togglePrompt}</span>
+            <button
+              className="text-button"
+              onClick={() => switchAuthMode(isLoginMode ? "signup" : "login")}
+              type="button"
+            >
+              {isLoginMode ? "Sign Up" : "Back to Login"}
             </button>
           </div>
 
