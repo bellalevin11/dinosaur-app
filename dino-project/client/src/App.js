@@ -4,6 +4,28 @@ import DinoViewer from "./DinoViewer";
 
 const USERNAME_ALLOWED_PATTERN = /^[A-Za-z0-9_]+$/;
 const PASSWORD_MIN_LENGTH = 8;
+const DINO_IMAGE_PATHS = {
+  "Tyrannosaurus Rex": "/images/trex.jpg",
+  Triceratops: "/images/triceratops.jpg",
+  Stegosaurus: "/images/stegosaurus.jpg",
+  Velociraptor: "/images/velociraptor.jpg"
+};
+
+const getDinoImagePath = (dino) => {
+  if (dino.image_path) {
+    if (dino.image_path.startsWith("/") || dino.image_path.startsWith("http")) {
+      return dino.image_path;
+    }
+
+    if (dino.image_path.startsWith("images/")) {
+      return `/${dino.image_path}`;
+    }
+
+    return `/images/${dino.image_path}`;
+  }
+
+  return DINO_IMAGE_PATHS[dino.name] || "";
+};
 
 function App() {
   // State variables to manage user and dinosaur data
@@ -483,11 +505,17 @@ function App() {
 
                   <h3>{dino.name}</h3>
 
-                  <p>
-                    {unlocked
-                      ? (dino.diet || dino.description)
-                      : `${currentUser.points} / ${dino.points_required} points`}
-                  </p>
+                  <div className="card-image-wrapper">
+                    <img
+                      src={getDinoImagePath(dino)}
+                      alt={dino.name}
+                      className={`card-image ${!unlocked ? "silhouette-image" : ""}`}
+                    />
+                  </div>
+
+                  {!unlocked && (
+                    <p>Unlock at {dino.points_required} points</p>
+                  )}
                 </div>
               );
             })}
@@ -580,10 +608,12 @@ function App() {
               <div className="dino-info-panel">
                 <h3>Field Notes</h3>
                 <p>{selectedDino.description}</p>
-                <div className="dino-meta">
-                  <span>Points needed</span>
-                  <strong>{selectedDino.points_required}</strong>
-                </div>
+                <p><strong>Diet:</strong> {selectedDino.diet}</p>
+                <p><strong>Period:</strong> {selectedDino.period}</p>
+                <p><strong>Length:</strong> {selectedDino.length}</p>
+                <p><strong>Habitat:</strong> {selectedDino.habitat}</p>
+                <p><strong>Fun Fact:</strong> {selectedDino.fun_fact}</p>
+                <p><strong>Unlock Requirement:</strong> {selectedDino.points_required} points</p>
               </div>
             </div>
           </div>

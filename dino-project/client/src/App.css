@@ -794,9 +794,38 @@ button:focus-visible {
   background: var(--bg-input);
   border: 1px solid var(--border-dark);
   border-radius: 8px;
-  padding: 20px;
-  min-height: 170px;
+  padding: 16px;
+  min-height: 190px;
   transition: transform 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+.collection-card h3 {
+  margin-top: 0;
+}
+
+.card-image-wrapper {
+  width: 100%;
+  height: 82px;
+  margin-bottom: 10px;
+  border-radius: 0;
+  overflow: hidden;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card-image {
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* Fake silhouette for locked dinos */
+.silhouette-image {
+  filter: grayscale(100%) brightness(0.12) contrast(1.5);
 }
 
 .unlocked-card:hover {
@@ -806,7 +835,7 @@ button:focus-visible {
 }
 
 .locked-card {
-  opacity: 0.45;
+  opacity: 0.85;
   filter: grayscale(60%);
 }
 
@@ -822,12 +851,13 @@ button:focus-visible {
 
 .locked-card h3,
 .locked-card p {
-  color: var(--text-muted);
+  color: #a9a79f;
 }
 
 .locked-card p {
   color: var(--accent-sage);
   font-style: italic;
+  margin-bottom: 0;
 }
 
 .user-info {

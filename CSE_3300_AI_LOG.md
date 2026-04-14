@@ -386,3 +386,54 @@ app.post("/login", async (req, res) => {
 If you already have users in your database with plain text passwords, they **won't work** after this change since bcrypt can't compare plain text against plain text — only against a hash. You'd need to either clear the users table and re-register, or write a one-time migration script to hash the existing passwords.
 
 ---
+
+**Prompt:** do i have any security issues i should fix
+
+**Response:**
+
+Yes. For a class project you’re in decent shape on basics like bcrypt and parameterized SQL, but there are a few important security issues I’d fix.
+
+**Findings**
+High: No real authentication/authorization after login.  
+[server/index.js](/Users/blevin22_1/Desktop/330/creative-project-bella-levin-508725-1/dino-project/server/index.js):130, [server/index.js](/Users/blevin22_1/Desktop/330/creative-project-bella-levin-508725-1/dino-project/server/index.js):168, [server/index.js](/Users/blevin22_1/Desktop/330/creative-project-bella-levin-508725-1/dino-project/server/index.js):220  
+The server trusts `userId` sent by the client. Anyone could call `/add-points`, `/check-unlocks`, or `/unlocked/:userId` with any user id. This means users can impersonate other users or give points to accounts manually. Fix by adding sessions or JWT auth, then derive `userId` on the server from the logged-in user instead of accepting it from the request body.
+
+High: Users can farm unlimited points by repeatedly calling `/add-points`.  
+[server/index.js](/Users/blevin22_1/Desktop/330/creative-project-bella-levin-508725-1/dino-project/server/index.js):130  
+Even though the UI only calls this after a correct answer, the backend does not verify a correct answer or enforce game rules. A user can send repeated POST requests and gain points. For a class project, the simplest fix is to move answer checking to the server or create a `/submit-guess` endpoint that verifies the answer before adding points.
+
+Medium: Logged-in state is stored in editable `localStorage`.  
+[App.js](/Users/blevin22_1/Desktop/330/creative-project-bella-levin-508725-1/dino-project/client/src/App.js):218  
+The client stores `{ id, username, points }` in `localStorage`. Users can edit this in DevTools. This mainly affects the UI right now, but combined with the server trusting `userId`, it becomes a real authorization problem. Fix with server-issued session/JWT and server-side user lookup.
+
+Medium: CORS is open to every website.  
+[server/index.js](/Users/blevin22_1/Desktop/330/creative-project-bella-levin-508725-1/dino-project/server/index.js):8  
+`app.use(cors())` allows any origin to call your API from a browser. For local dev this is convenient, but for production restrict it to your frontend URL, like `http://localhost:3000` or your deployed site.
+
+Medium: No login/signup rate limiting.  
+[server/index.js](/Users/blevin22_1/Desktop/330/creative-project-bella-levin-508725-1/dino-project/server/index.js):26, [server/index.js](/Users/blevin22_1/Desktop/330/creative-project-bella-levin-508725-1/dino-project/server/index.js):76  
+Attackers can brute-force passwords or spam account creation. Add `express-rate-limit` to `/login` and `/signup`.
+
+Low: `/test-db` should not be exposed in production.  
+[server/index.js](/Users/blevin22_1/Desktop/330/creative-project-bella-levin-508725-1/dino-project/server/index.js):15  
+It currently only returns dinosaurs, so it is not disastrous, but test/debug routes should usually be removed or hidden behind dev-only logic.
+
+Low/Medium: Client dependency audit has vulnerabilities.  
+Server audit found `0 vulnerabilities`. Client audit found `26 vulnerabilities`, mostly through `react-scripts` transitive dev/build dependencies. This is common with older Create React App projects. I would not blindly run `npm audit fix --force` because it says it may install a breaking `react-scripts` version. Safer options are upgrading `react-scripts` carefully or migrating later to Vite.
+
+**Good Things**
+You are already doing two important things right:
+
+- Passwords are hashed with bcrypt: [server/index.js](/Users/blevin22_1/Desktop/330/creative-project-bella-levin-508725-1/dino-project/server/index.js):56
+- SQL queries use parameterized values like `$1`, which protects against SQL injection in the places I checked.
+
+**Priority Fix Order**
+
+1. Add real auth/session handling.
+2. Stop accepting `userId` from the client for protected actions.
+3. Move point awarding / answer verification server-side.
+4. Restrict CORS.
+5. Add rate limiting to login/signup.
+6. Remove `/test-db` before final deployment.
+
+---
