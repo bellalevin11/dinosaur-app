@@ -437,3 +437,127 @@ You are already doing two important things right:
 6. Remove `/test-db` before final deployment.
 
 ---
+
+**Prompt:** take me throguh the steps for building this game
+
+Dino Speed Quiz (Timer-Based)
+
+**Response:**
+
+Yes — this is a really good next game because it feels different from your current quiz and is still pretty manageable.
+
+What the Dino Speed Quiz should do
+
+The basic version should work like this:
+
+The user clicks a “Play Dino Speed Quiz” button. An instructions modal opens. When they click start, a game modal opens with a countdown timer, like 30 seconds. During those 30 seconds, the user gets as many dinosaur questions as possible. Each correct answer gives points. When time runs out, the game ends, shows the final score, and updates the user’s total points live.
+
+Step-by-step game plan
+
+1. Add a new minigame button
+
+In your minigames panel, add a second button for the speed quiz. Keep your current Guess the Dinosaur game and add this as a separate option.
+
+2. Add new state variables
+
+You’ll need state for:
+• whether the speed quiz instructions modal is open
+• whether the speed quiz game modal is open
+• the current timer value
+• the current question
+• the current answer choices
+• the current quiz score
+• whether the timer is running
+• whether the round is over
+
+3. Create the question generator
+
+You already have logic for your normal dinosaur guessing game. You can reuse that idea.
+
+The easiest version is:
+• randomly choose 1 dinosaur as the correct answer
+• randomly choose 3 other dinosaurs as wrong answers
+• shuffle the 4 choices
+• show a clue such as description, fun fact, diet, or period
+
+4. Start the round
+
+When the user clicks “Start Speed Quiz”:
+• set the timer to 30
+• set score to 0
+• set game-over to false
+• generate the first question
+• open the modal
+• start the countdown
+
+5. Run the timer
+
+Use useEffect with setInterval so the timer decreases every second while the game is running.
+
+When the timer hits 0:
+• stop the timer
+• mark the round as over
+• award points based on the score
+• update the user’s total points in the database
+• run your unlock check
+• refresh unlocked dinosaurs
+
+6. Handle answers
+
+When the user clicks an answer:
+• check whether it matches the correct dinosaur
+• if correct, increase the round score
+• generate a new question immediately
+• do not pause the timer
+
+That makes it feel fast and arcade-like.
+
+7. End screen
+
+When time is up, show:
+• final score
+• points earned
+• maybe “You unlocked a new dinosaur!” if applicable
+• a button to play again
+• a button to close
+
+Easiest scoring rule
+
+Keep it simple:
+• each correct answer = 1 quiz point
+• at the end, total points added to account = quizScore \* 5
+
+So if they get 6 correct:
+• score = 6
+• reward = 30 points
+
+That feels meaningful but not too overpowered.
+
+Recommended question types
+
+To keep the game easy to build, use one clue field at a time. Good options:
+• description
+• fun_fact
+• diet
+• period
+
+You can even randomize the clue type later, but start with just one.
+
+Suggested UI inside the modal
+
+Top:
+• title: Dino Speed Quiz
+• timer badge
+• current round score
+
+Middle:
+• clue prompt
+• 4 answer buttons
+
+Bottom:
+• small note like “Answer as many as you can before time runs out”
+
+When the round ends:
+• replace the question area with score summary and buttons
+
+---
