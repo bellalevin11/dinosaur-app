@@ -795,12 +795,13 @@ button:focus-visible {
   border: 1px solid var(--border-dark);
   border-radius: 8px;
   padding: 16px;
-  min-height: 190px;
+  min-height: 160px;
   transition: transform 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
 }
 
 .collection-card h3 {
   margin-top: 0;
+  margin-bottom: 20px;
 }
 
 .card-image-wrapper {

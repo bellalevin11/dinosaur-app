@@ -600,6 +600,7 @@ function App() {
                     modelPath={selectedDino.model_path}
                     scale={selectedDino.model_scale}
                     yOffset={selectedDino.model_y_offset}
+                    rotationY={selectedDino.model_rotation_y}
                   />
                 )}
                 <p className="viewer-help">Drag around to rotate the dinosaur. Scroll to zoom in and out.</p>
