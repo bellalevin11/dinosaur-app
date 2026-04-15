@@ -4,11 +4,21 @@ import DinoViewer from "./DinoViewer";
 
 const USERNAME_ALLOWED_PATTERN = /^[A-Za-z0-9_]+$/;
 const PASSWORD_MIN_LENGTH = 8;
+const SPEED_QUIZ_DURATION = 30;
 const DINO_IMAGE_PATHS = {
   "Tyrannosaurus Rex": "/images/trex.jpg",
   Triceratops: "/images/triceratops.jpg",
   Stegosaurus: "/images/stegosaurus.jpg",
   Velociraptor: "/images/velociraptor.jpg"
+};
+
+const dinoMapPositions = {
+  Velociraptor: { top: "38%", left: "78%" },
+  Triceratops: { top: "28%", left: "19%" },
+  "Tyrannosaurus Rex": { top: "36%", left: "17%" },
+  Stegosaurus: { top: "45%", left: "16%" },
+  Ankylosaurus: { top: "50%", left: "22%" },
+  Brachiosaurus: { top: "43%", left: "22%" }
 };
 
 const getDinoImagePath = (dino) => {
@@ -27,6 +37,12 @@ const getDinoImagePath = (dino) => {
   return DINO_IMAGE_PATHS[dino.name] || "";
 };
 
+const getSpeedQuizClue = (dino) => {
+  const rawClue = dino.fun_fact || dino.description || dino.clue || "";
+  const escapedName = dino.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return rawClue.replace(new RegExp(escapedName, "gi"), "This dinosaur");
+};
+
 function App() {
   // State variables to manage user and dinosaur data
   const [username, setUsername] = useState("");
@@ -40,8 +56,20 @@ function App() {
   const [choices, setChoices] = useState([]);
   const [selectedDino, setSelectedDino] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isMapOpen, setIsMapOpen] = useState(false);
   const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
   const [isGameOpen, setIsGameOpen] = useState(false);
+  const [isSpeedInstructionsOpen, setIsSpeedInstructionsOpen] = useState(false);
+  const [isSpeedGameOpen, setIsSpeedGameOpen] = useState(false);
+  const [speedTimeLeft, setSpeedTimeLeft] = useState(SPEED_QUIZ_DURATION);
+  const [speedQuestion, setSpeedQuestion] = useState(null);
+  const [speedChoices, setSpeedChoices] = useState([]);
+  const [speedScore, setSpeedScore] = useState(0);
+  const [isSpeedGameOver, setIsSpeedGameOver] = useState(false);
+  const [isSpeedTimerRunning, setIsSpeedTimerRunning] = useState(false);
+  const [speedFeedback, setSpeedFeedback] = useState("");
+  const [speedRewardPoints, setSpeedRewardPoints] = useState(0);
+  const [speedRewardAwarded, setSpeedRewardAwarded] = useState(false);
   const [isError, setIsError] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
@@ -332,9 +360,159 @@ function App() {
     generateQuestion();
   };
 
+  const generateSpeedQuestion = useCallback(() => {
+    if (dinosaurs.length < 4) {
+      setSpeedQuestion(null);
+      setSpeedChoices([]);
+      setSpeedFeedback("Dino Speed Quiz needs at least 4 dinosaurs.");
+      return;
+    }
+
+    const shuffled = [...dinosaurs].sort(() => 0.5 - Math.random());
+    const correctAnswer = shuffled[0];
+    const wrongAnswers = shuffled
+      .filter((dino) => dino.id !== correctAnswer.id)
+      .slice(0, 3);
+    const answerChoices = [...wrongAnswers, correctAnswer].sort(
+      () => 0.5 - Math.random()
+    );
+
+    setSpeedQuestion({
+      answerId: correctAnswer.id,
+      clue: getSpeedQuizClue(correctAnswer)
+    });
+    setSpeedChoices(answerChoices);
+  }, [dinosaurs]);
+
+  const awardSpeedQuizReward = useCallback(async () => {
+    if (!currentUser) return;
+
+    try {
+      const res = await fetch("http://localhost:5001/speed-quiz-reward", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          quizScore: Number(speedScore)
+        })
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        if (errorText.includes("Cannot POST /speed-quiz-reward")) {
+          throw new Error("Backend route /speed-quiz-reward is not running. Restart the Express server.");
+        }
+
+        if (errorText.trim().startsWith("<!DOCTYPE html>")) {
+          throw new Error("Backend returned an HTML error page. Check the Express server route.");
+        }
+
+        throw new Error(errorText || "Could not award speed quiz points");
+      }
+
+      const data = await res.json();
+      setCurrentUser(data.user);
+      localStorage.setItem("currentUser", JSON.stringify(data.user));
+      setSpeedRewardPoints(data.rewardPoints);
+      await fetchUnlocked(data.user.id);
+
+      if (data.unlocked && data.unlocked.length > 0) {
+        setMessage(`Speed quiz complete! You earned ${data.rewardPoints} points and unlocked a new dinosaur!`);
+      } else {
+        setMessage(`Speed quiz complete! You earned ${data.rewardPoints} points.`);
+      }
+    } catch (err) {
+      console.error(err);
+      setSpeedFeedback(err.message || "Could not award speed quiz points.");
+    }
+  }, [currentUser, speedScore]);
+
+  useEffect(() => {
+    if (!isSpeedTimerRunning || isSpeedGameOver) return;
+
+    const intervalId = setInterval(() => {
+      setSpeedTimeLeft((timeLeft) => Math.max(timeLeft - 1, 0));
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, [isSpeedTimerRunning, isSpeedGameOver]);
+
+  useEffect(() => {
+    if (!isSpeedTimerRunning || speedTimeLeft > 0 || speedRewardAwarded) return;
+
+    setIsSpeedTimerRunning(false);
+    setIsSpeedGameOver(true);
+    setSpeedRewardAwarded(true);
+    setSpeedQuestion(null);
+    setSpeedChoices([]);
+    awardSpeedQuizReward();
+  }, [
+    awardSpeedQuizReward,
+    isSpeedTimerRunning,
+    speedRewardAwarded,
+    speedTimeLeft
+  ]);
+
+  const openSpeedInstructions = () => {
+    setIsSpeedInstructionsOpen(true);
+  };
+
+  const closeSpeedInstructions = () => {
+    setIsSpeedInstructionsOpen(false);
+  };
+
+  const startSpeedQuiz = () => {
+    setIsSpeedInstructionsOpen(false);
+    setIsSpeedGameOpen(true);
+    setSpeedTimeLeft(SPEED_QUIZ_DURATION);
+    setSpeedScore(0);
+    setSpeedRewardPoints(0);
+    setSpeedFeedback("");
+    setIsSpeedGameOver(false);
+    setSpeedRewardAwarded(false);
+    generateSpeedQuestion();
+    setIsSpeedTimerRunning(true);
+  };
+
+  const closeSpeedQuiz = () => {
+    setIsSpeedGameOpen(false);
+    setIsSpeedTimerRunning(false);
+    setSpeedQuestion(null);
+    setSpeedChoices([]);
+    setSpeedFeedback("");
+  };
+
+  const handleSpeedAnswer = (selectedDinoId) => {
+    if (!speedQuestion || isSpeedGameOver || !isSpeedTimerRunning) return;
+
+    if (selectedDinoId === speedQuestion.answerId) {
+      setSpeedScore((score) => score + 1);
+      setSpeedFeedback("Correct!");
+    } else {
+      setSpeedFeedback("Not quite. Next one!");
+    }
+
+    generateSpeedQuestion();
+  };
+
+  const openMapModal = () => {
+    setIsMapOpen(true);
+  };
+
+  const closeMapModal = () => {
+    setIsMapOpen(false);
+  };
+
   const openDinoModal = (dino) => {
     setSelectedDino(dino);
     setIsModalOpen(true);
+  };
+
+  const openDinoFromMap = (dino) => {
+    setIsMapOpen(false);
+    openDinoModal(dino);
   };
 
   const closeDinoModal = () => {
@@ -479,7 +657,11 @@ function App() {
           <div className="minigame-button-list">
             <button className="minigame-button" onClick={openInstructions}>
               <span>Guess the Dinosaur</span>
-              <span>+10</span>
+              <span>+10 each</span>
+            </button>
+            <button className="minigame-button" onClick={openSpeedInstructions}>
+              <span>Dino Speed Quiz</span>
+              <span>+5 each</span>
             </button>
           </div>
 
@@ -487,7 +669,12 @@ function App() {
         </div>
 
         <div className="collection-panel">
-          <h2>Dinosaur Collection</h2>
+          <div className="collection-header">
+            <h2>Dinosaur Collection</h2>
+            <button className="map-button" onClick={openMapModal}>
+              Map
+            </button>
+          </div>
 
           <div className="collection-grid">
             {dinosaurs.map((dino) => {
@@ -574,6 +761,145 @@ function App() {
             )}
 
             <p className="message">{message}</p>
+          </div>
+        </div>
+      )}
+
+      {isSpeedInstructionsOpen && (
+        <div className="modal-overlay" onClick={closeSpeedInstructions}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={closeSpeedInstructions}>
+              X
+            </button>
+
+            <h2>Dino Speed Quiz</h2>
+            <p>You will have <strong>30 seconds</strong>.</p>
+            <p>Answer as many dinosaur questions as possible before time runs out.</p>
+            <p>Each correct answer increases your score.</p>
+            <p>When time runs out, you earn <strong>5 points</strong> for each correct answer.</p>
+
+            <button className="action-button" onClick={startSpeedQuiz}>Start Quiz</button>
+          </div>
+        </div>
+      )}
+
+      {isSpeedGameOpen && (
+        <div className="modal-overlay" onClick={closeSpeedQuiz}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={closeSpeedQuiz}>
+              X
+            </button>
+
+            <h2>Dino Speed Quiz</h2>
+
+            <div className="speed-quiz-stats">
+              <p className="points-badge">Time: {speedTimeLeft}s</p>
+              <p className="points-badge">Score: {speedScore}</p>
+            </div>
+
+            {isSpeedGameOver ? (
+              <div className="speed-results">
+                <h3>Time's up!</h3>
+                <p>Final score: {speedScore}</p>
+                <p>Reward earned: {speedRewardPoints} points</p>
+                <div className="speed-result-actions">
+                  <button onClick={startSpeedQuiz}>Play Again</button>
+                  <button className="logout-button" onClick={closeSpeedQuiz}>Close</button>
+                </div>
+              </div>
+            ) : (
+              <div className="game-card">
+                {speedQuestion && (
+                  <p>
+                    <strong>Clue:</strong> {speedQuestion.clue}
+                  </p>
+                )}
+
+                <div className="speed-answer-grid">
+                  {speedChoices.map((choice) => (
+                    <button
+                      key={choice.id}
+                      onClick={() => handleSpeedAnswer(choice.id)}
+                      className="speed-answer-tile"
+                    >
+                      <img
+                        src={getDinoImagePath(choice)}
+                        alt={choice.name}
+                        className="speed-answer-image"
+                      />
+                      <span>{choice.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {speedFeedback && <p className="message">{speedFeedback}</p>}
+          </div>
+        </div>
+      )}
+
+      {isMapOpen && (
+        <div className="modal-overlay" onClick={closeMapModal}>
+          <div className="modal-content map-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={closeMapModal}>
+              X
+            </button>
+
+            <div className="map-modal-header">
+              <p className="eyebrow">Habitats</p>
+              <h2>Dinosaur Habitat Map</h2>
+              <p>Unlocked dinosaurs can be opened from the map. Locked dinosaurs stay as silhouettes.</p>
+            </div>
+
+            <div className="map-container">
+              <img
+                src="/images/world-map.png"
+                alt="World map"
+                className="map-background"
+              />
+
+              {dinosaurs.map((dino) => {
+                const position = dinoMapPositions[dino.name];
+
+                if (!position) {
+                  return null;
+                }
+
+                const unlocked = unlockedDinos.some(
+                  (unlockedDino) => unlockedDino.id === dino.id
+                );
+                const markerImagePath = getDinoImagePath(dino);
+
+                return (
+                  <button
+                    key={dino.id}
+                    className={`map-marker ${unlocked ? "unlocked-marker" : "locked-marker"}`}
+                    style={{ top: position.top, left: position.left }}
+                    onClick={unlocked ? () => openDinoFromMap(dino) : undefined}
+                    type="button"
+                    disabled={!unlocked}
+                    aria-label={`${dino.name} ${unlocked ? "unlocked" : "locked"}`}
+                  >
+                    {markerImagePath ? (
+                      <img
+                        src={markerImagePath}
+                        alt=""
+                        className="map-marker-image"
+                      />
+                    ) : (
+                      <span className="map-marker-initial">
+                        {dino.name.charAt(0)}
+                      </span>
+                    )}
+                    {!unlocked && <span className="map-marker-lock">🔒</span>}
+                    <span className="map-marker-label">
+                      {unlocked ? dino.name : `${dino.name} · Locked`}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

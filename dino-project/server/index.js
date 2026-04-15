@@ -4,9 +4,61 @@ const cors = require("cors");
 const pool = require("./db");
 
 const app = express();
+const ALLOWED_ORIGINS = (
+  process.env.CLIENT_ORIGIN ||
+  "http://localhost:3000,http://localhost:3001,http://localhost:3002"
+).split(",");
 
-app.use(cors());
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error("Not allowed by CORS"));
+  }
+}));
 app.use(express.json());
+
+const checkUnlocksForUser = async (userId) => {
+  const userResult = await pool.query(
+    "SELECT points FROM users WHERE id = $1",
+    [userId]
+  );
+
+  if (userResult.rows.length === 0) {
+    return null;
+  }
+
+  const points = userResult.rows[0].points;
+
+  const dinosResult = await pool.query(
+    "SELECT * FROM dinosaurs WHERE points_required <= $1",
+    [points]
+  );
+
+  const qualifiedDinos = dinosResult.rows;
+
+  const unlockedResult = await pool.query(
+    "SELECT dinosaur_id FROM unlocked_dinosaurs WHERE user_id = $1",
+    [userId]
+  );
+
+  const unlockedIds = unlockedResult.rows.map((d) => d.dinosaur_id);
+
+  const newUnlocks = qualifiedDinos.filter(
+    (d) => !unlockedIds.includes(d.id)
+  );
+
+  for (const dino of newUnlocks) {
+    await pool.query(
+      "INSERT INTO unlocked_dinosaurs (user_id, dinosaur_id) VALUES ($1, $2)",
+      [userId, dino.id]
+    );
+  }
+
+  return newUnlocks;
+};
 
 app.get("/", (req, res) => {
   res.send("Server is running");
@@ -151,6 +203,45 @@ app.post("/add-points", async (req, res) => {
   }
 });
 
+// AWARD POINTS FOR DINO SPEED QUIZ
+app.post("/speed-quiz-reward", async (req, res) => {
+  const { userId, quizScore } = req.body;
+  const parsedUserId = Number(userId);
+  const parsedScore = Number(quizScore);
+
+  if (!Number.isInteger(parsedUserId) || parsedUserId <= 0) {
+    return res.status(400).send("Missing user ID");
+  }
+
+  if (!Number.isInteger(parsedScore) || parsedScore < 0 || parsedScore > 30) {
+    return res.status(400).send("Invalid quiz score");
+  }
+
+  const rewardPoints = parsedScore * 5;
+
+  try {
+    const result = await pool.query(
+      "UPDATE users SET points = points + $1 WHERE id = $2 RETURNING id, username, points",
+      [rewardPoints, parsedUserId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).send("User not found");
+    }
+
+    const unlocked = await checkUnlocksForUser(parsedUserId);
+
+    res.json({
+      user: result.rows[0],
+      rewardPoints,
+      unlocked: unlocked || []
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("An error occurred");
+  }
+});
+
 // GET ALL DINOSAURS
 app.get("/dinosaurs", async (req, res) => {
   try {
@@ -173,43 +264,13 @@ app.post("/check-unlocks", async (req, res) => {
   }
 
   try {
-    const userResult = await pool.query(
-      "SELECT points FROM users WHERE id = $1",
-      [userId]
-    );
+    const unlocked = await checkUnlocksForUser(userId);
 
-    if (userResult.rows.length === 0) {
+    if (!unlocked) {
       return res.status(404).send("User not found");
     }
 
-    const points = userResult.rows[0].points;
-
-    const dinosResult = await pool.query(
-      "SELECT * FROM dinosaurs WHERE points_required <= $1",
-      [points]
-    );
-
-    const qualifiedDinos = dinosResult.rows;
-
-    const unlockedResult = await pool.query(
-      "SELECT dinosaur_id FROM unlocked_dinosaurs WHERE user_id = $1",
-      [userId]
-    );
-
-    const unlockedIds = unlockedResult.rows.map((d) => d.dinosaur_id);
-
-    const newUnlocks = qualifiedDinos.filter(
-      (d) => !unlockedIds.includes(d.id)
-    );
-
-    for (const dino of newUnlocks) {
-      await pool.query(
-        "INSERT INTO unlocked_dinosaurs (user_id, dinosaur_id) VALUES ($1, $2)",
-        [userId, dino.id]
-      );
-    }
-
-    res.json({ unlocked: newUnlocks });
+    res.json({ unlocked });
   } catch (err) {
     console.error(err);
     res.status(500).send("An error occurred");
