@@ -63,7 +63,7 @@ h2 {
 }
 
 h3 {
-  font-size: 1.1rem;
+  font-size: .9rem;
   margin-bottom: 0.6rem;
   margin-top: -.2rem;
 }
@@ -88,9 +88,9 @@ p {
 }
 
 .app {
-  max-width: 1200px;
+  max-width: 1250px;
   margin: 0 auto;
-  padding: 32px 20px 48px;
+  padding: 20px 10px;
 }
 
 .auth-page {
@@ -975,8 +975,14 @@ button:focus-visible {
   box-shadow:
     0 0 0 1px rgba(169, 167, 159, 0.18),
     0 0 14px rgba(169, 167, 159, 0.2);
-  filter: grayscale(100%) brightness(0.16) contrast(1.45) drop-shadow(0 8px 10px rgba(0, 0, 0, 0.42));
-}
+    filter:
+      grayscale(100%)
+      brightness(0.26)
+      contrast(1.45)
+      drop-shadow(0 0 6px rgba(179, 126, 61, 0.25))   /* soft amber glow */
+      drop-shadow(0 0 8px rgba(179, 126, 61, 0.15))   /* outer fade */
+      drop-shadow(0 8px 10px rgba(0, 0, 0, 0.42));    /* depth shadow */
+  }
 
 .map-marker-lock {
   align-items: center;
@@ -1083,9 +1089,9 @@ button:focus-visible {
 
 .card-icon {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  font-size: 1rem;
+  top: 8px;
+  right: 8px;
+  font-size: .8rem;
   background: rgba(9, 17, 12, 0.62);
   padding: 4px 6px;
   border-radius: 6px;

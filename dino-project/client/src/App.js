@@ -892,7 +892,6 @@ function App() {
                         {dino.name.charAt(0)}
                       </span>
                     )}
-                    {!unlocked && <span className="map-marker-lock">🔒</span>}
                     <span className="map-marker-label">
                       {unlocked ? dino.name : `${dino.name} · Locked`}
                     </span>
