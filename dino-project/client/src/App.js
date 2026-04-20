@@ -13,12 +13,12 @@ const DINO_IMAGE_PATHS = {
 };
 
 const dinoMapPositions = {
-  Velociraptor: { top: "38%", left: "78%" },
-  Triceratops: { top: "28%", left: "19%" },
-  "Tyrannosaurus Rex": { top: "36%", left: "17%" },
-  Stegosaurus: { top: "45%", left: "16%" },
-  Ankylosaurus: { top: "50%", left: "22%" },
-  Brachiosaurus: { top: "43%", left: "22%" }
+  Velociraptor: { top: "42%", left: "74%" },
+  Triceratops: { top: "31%", left: "17%" },
+  "Tyrannosaurus Rex": { top: "39%", left: "20.5%" },
+  Stegosaurus: { top: "47%", left: "16.5%" },
+  Ankylosaurus: { top: "50%", left: "24%" },
+  Brachiosaurus: { top: "41.5%", left: "25.5%" }
 };
 
 const getDinoImagePath = (dino) => {
@@ -854,7 +854,7 @@ function App() {
 
             <div className="map-container">
               <img
-                src="/images/world-map.png"
+                src="/images/world-map.jpg"
                 alt="World map"
                 className="map-background"
               />
