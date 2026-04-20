@@ -40,7 +40,16 @@ const getDinoImagePath = (dino) => {
 const getSpeedQuizClue = (dino) => {
   const rawClue = dino.fun_fact || dino.description || dino.clue || "";
   const escapedName = dino.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return rawClue.replace(new RegExp(escapedName, "gi"), "This dinosaur");
+
+  // Add support for "T-Rex" by checking for variations
+  const nameVariations = [
+    escapedName,
+    "T-Rex", // Common shorthand for Tyrannosaurus Rex
+    "Tyrannosaurus" // Full name as listed in the server
+  ];
+
+  const regex = new RegExp(nameVariations.join("|"), "gi");
+  return rawClue.replace(regex, "This dinosaur");
 };
 
 function App() {
