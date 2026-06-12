@@ -183,7 +183,7 @@ function App() {
   // Fetch all dinosaurs from the server
   const fetchDinosaurs = async () => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/dinosaurs`);
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/dinosaurs`);
       if (!res.ok) {
         throw new Error("Could not fetch dinosaurs");
       }
@@ -198,7 +198,7 @@ function App() {
   // Fetch unlocked dinosaurs for the current user
   const fetchUnlocked = async (userId) => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/unlocked/${userId}`);
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/unlocked/${userId}`);
       if (!res.ok) {
         throw new Error("Could not fetch unlocked dinosaurs");
       }
@@ -220,7 +220,7 @@ function App() {
     }
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/signup`, {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/signup`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -258,7 +258,7 @@ function App() {
     }
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/login`, {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -290,7 +290,7 @@ function App() {
   // Add points to the current user
   const addPointsToUser = async (pointsToAdd) => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/add-points`, {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/add-points`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -309,7 +309,7 @@ function App() {
       setCurrentUser(updatedUser);
       localStorage.setItem("currentUser", JSON.stringify(updatedUser));
 
-      const unlockRes = await fetch(`${import.meta.env.VITE_API_URL}/check-unlocks`, {
+      const unlockRes = await fetch(`${process.env.REACT_APP_API_URL}/check-unlocks`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -397,7 +397,7 @@ function App() {
     if (!currentUser) return;
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/speed-quiz-reward`, {
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/speed-quiz-reward`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
