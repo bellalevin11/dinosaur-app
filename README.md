@@ -58,7 +58,6 @@ This project was originally developed as part of a university web development co
 - React
 - CSS
 - React Three Fiber
-- Drei
 - Three.js
 
 ### Backend
